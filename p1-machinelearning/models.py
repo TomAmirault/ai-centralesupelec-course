@@ -159,7 +159,7 @@ class RegressionModel(Module):
         is the item we need to predict based off of its features.
 
         Inputs:
-            dataset: a PyTorch dataset object containing data to be trained on
+            dataset : a PyTorch dataset object containing data to be trained on
             
         """
         "*** YOUR CODE HERE ***"
