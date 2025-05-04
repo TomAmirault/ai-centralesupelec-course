@@ -38,7 +38,8 @@ class PerceptronModel(Module):
         super(PerceptronModel, self).__init__()
         
         "*** YOUR CODE HERE ***"
-        
+        # Let's initialize de weight as a PyTorch parameter
+        self.w = Parameter(torch.randn(1,dimensions)) # We initialie randomly
 
     def get_weights(self):
         """
@@ -57,7 +58,7 @@ class PerceptronModel(Module):
         The pytorch function `tensordot` may be helpful here.
         """
         "*** YOUR CODE HERE ***"
-        
+        return torch.matmul(x, self.w.T) # We compute the dot product of input and weights
 
     def get_prediction(self, x):
         """
@@ -66,7 +67,11 @@ class PerceptronModel(Module):
         Returns: 1 or -1
         """
         "*** YOUR CODE HERE ***"
-
+        score = self.run(x)
+        if score >= 0:
+            return torch.tensor(1)
+        else:
+            return torch.tensor(-1)
 
 
     def train(self, dataset):
@@ -78,10 +83,22 @@ class PerceptronModel(Module):
         Each sample in the dataloader is in the form {'x': features, 'label': label} where label
         is the item we need to predict based off of its features.
         """        
-        with no_grad():
-            dataloader = DataLoader(dataset, batch_size=1, shuffle=True)
-            "*** YOUR CODE HERE ***"
-
+        dataloader = DataLoader(dataset, batch_size=1, shuffle=True) # We iterate over the batches
+        correct = False
+        
+        while not correct:
+            correct = True # We assume the classification is correct until proven otherwise
+            for batch in dataloader:
+                x, label = batch['x'], batch['label']
+                prediction = self.get_prediction(x)
+                misclassified = (prediction != label) # We check where the missclassification occurs
+                if misclassified.any() :
+                    correct = False # We found a misclassification, we have to continue the training
+                    for i in range(len(misclassified)):
+                        if misclassified[i]:
+                            # We update the weights with the learning rule: w += learning_rate * x * label
+                            self.w.data += 1 * x[i] * label[i] # We update weights for missclassified points ## A learning rate of 0.1 or 0.5 is too small
+            
 
 
 class RegressionModel(Module):
