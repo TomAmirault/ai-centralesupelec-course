@@ -208,12 +208,14 @@ class DigitClassificationModel(Module):
     """
     def __init__(self):
         # Initialize your model parameters here
-        super().__init__()
+        super(DigitClassificationModel, self).__init__()
         input_size = 28 * 28
         output_size = 10
         "*** YOUR CODE HERE ***"
 
-
+        self.hidden1 = Linear(input_size, 256)
+        self.hidden2 = Linear(256, 256)
+        self.output = Linear(256, output_size)
 
 
     def run(self, x):
@@ -231,7 +233,9 @@ class DigitClassificationModel(Module):
                 (also called logits)
         """
         """ YOUR CODE HERE """
-
+        x = relu(self.hidden1(x))
+        x = relu(self.hidden2(x))
+        return self.output(x)
  
 
     def get_loss(self, x, y):
@@ -248,19 +252,45 @@ class DigitClassificationModel(Module):
         Returns: a loss tensor
         """
         """ YOUR CODE HERE """
-
+        predictions = self.run(x)
+        return cross_entropy(predictions, y)
     
         
 
-    def train(self, dataset):
+    def train(self, dataset, num_epochs = 15, lr = 0.001, early_stopping_threshold=0.975):
         """
         Trains the model.
         """
         """ YOUR CODE HERE """
+        dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
+        optimizer = optim.Adam(self.parameters(), lr=lr)
+
+        for epoch in range(num_epochs):
+            total_loss = 0.0
+            for batch in dataloader:
+                x, y = batch['x'], batch['label']  # Get inputs and labels from the dataset
+                
+                optimizer.zero_grad()  # Zero the gradients
+                loss = self.get_loss(x, y)  # Calculate loss
+                loss.backward()  # Backpropagate the loss
+                optimizer.step()  # Update model parameters
+
+                total_loss += loss.item()
+
+            # Compute validation accuracy
+            val_accuracy = dataset.get_validation_accuracy()
+            print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {total_loss / len(dataloader)}, Validation Accuracy: {val_accuracy}')
+
+            # Early stopping based on validation accuracy
+            if val_accuracy > early_stopping_threshold:
+                print(f'Early stopping at epoch {epoch+1}, Validation Accuracy: {val_accuracy}')
+                break
+
 
 
 
 class LanguageIDModel(Module):
+    
     """
     A model for language identification at a single-word granularity.
 
@@ -268,18 +298,29 @@ class LanguageIDModel(Module):
     methods here. We recommend that you implement the RegressionModel before
     working on this part of the project.)
     """
+    
     def __init__(self):
         # Our dataset contains words from five different languages, and the
         # combined alphabets of the five languages contain a total of 47 unique
         # characters.
         # You can refer to self.num_chars or len(self.languages) in your code
+        # Initialize parameters
         self.num_chars = 47
         self.languages = ["English", "Spanish", "Finnish", "Dutch", "Polish"]
+        self.num_languages = len(self.languages)
+        self.hidden_size = 256  # Size of the hidden state
+        
         super(LanguageIDModel, self).__init__()
-        "*** YOUR CODE HERE ***"
+        
+        # Initialize layers
+        self.W_x = Linear(self.num_chars, self.hidden_size)  # Input to hidden weight matrix
+        self.W_hidden = Linear(self.hidden_size, self.hidden_size)  # Hidden to hidden weight matrix
+        self.output_layer = Linear(self.hidden_size, self.num_languages)  # Output layer for classification
 
+        
 
     def run(self, xs):
+        
         """
         Runs the model for a batch of examples.
 
@@ -308,10 +349,22 @@ class LanguageIDModel(Module):
             A node with shape (batch_size x 5) containing predicted scores
                 (also called logits)
         """
+        
         "*** YOUR CODE HERE ***"
-
+        h = torch.zeros(xs[0].size(0), self.hidden_size)  # Initialize hidden state (batch_size, hidden_size)
+        
+        for i in range(len(xs)):
+            if i == 0:
+                h = relu(self.W_x(xs[i]))  # Process first character
+            else:
+                h = relu(self.W_x(xs[i]) + self.W_hidden(h))  # Update hidden state with subsequent characters
+        
+        output = self.output_layer(h) 
+        return output
+        
     
     def get_loss(self, xs, y):
+        
         """
         Computes the loss for a batch of examples.
 
@@ -325,10 +378,15 @@ class LanguageIDModel(Module):
             y: a node with shape (batch_size x 5)
         Returns: a loss node
         """
-        "*** YOUR CODE HERE ***"
         
+        "*** YOUR CODE HERE ***"
+        predictions = self.run(xs)  # Get language prediction scores
+        y = torch.argmax(y, dim=1)  # Convert one-hot to class indices
+        return cross_entropy(predictions, y)  # Cross-entropy loss for classification
+                
 
-    def train(self, dataset):
+    def train(self, dataset, num_epochs=20, lr=0.001, early_stopping_threshold=0.85):
+        
         """
         Trains the model.
 
@@ -342,9 +400,35 @@ class LanguageIDModel(Module):
 
         For more information, look at the pytorch documentation of torch.movedim()
         """
-        "*** YOUR CODE HERE ***"
-
         
+        "*** YOUR CODE HERE ***"
+        
+        dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
+        optimizer = optim.Adam(self.parameters(), lr=lr)
+
+        for epoch in range(num_epochs):
+            total_loss = 0.0
+            for batch in dataloader:
+                xs, y = batch['x'], batch['label']  # Get the input (xs) and labels (y)
+                xs = movedim(xs, 0, 1)
+                    
+                optimizer.zero_grad()  # Zero the gradients
+                loss = self.get_loss(xs, y)  # Compute the loss
+                loss.backward()  # Backpropagate the loss
+                optimizer.step()  # Update the model parameters
+
+                total_loss += loss.item()
+
+
+            # Compute validation accuracy
+            val_accuracy = dataset.get_validation_accuracy()
+            print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {total_loss / len(dataloader)}, Validation Accuracy: {val_accuracy}')
+
+            # Early stopping based on validation accuracy
+            if val_accuracy > early_stopping_threshold:
+                print(f'Early stopping at epoch {epoch+1}, Validation Accuracy: {val_accuracy}')
+                break
+  
 
 def Convolve(input: tensor, weight: tensor):
     """
@@ -359,15 +443,23 @@ def Convolve(input: tensor, weight: tensor):
 
     This returns a subtensor who's first element is tensor[y,x] and has height 'height, and width 'width'
     """
-    input_tensor_dimensions = input.shape
-    weight_dimensions = weight.shape
-    Output_Tensor = tensor(())
-    "*** YOUR CODE HERE ***"
+    d1, d2 = input.shape
+    h, w = weight.shape
 
+    output_d1 = d1 - h + 1
+    output_d2 = d2 - w + 1
+
+    output_tensor = torch.zeros(output_d1, output_d2)
+
+    # Apply convolution by sliding the kernel over the input
+    for i in range(output_d1):
+        for j in range(output_d2):
+            # Get the region of the input matrix we are currently looking at
+            region = input[i:i+h, j:j+w]
+            # Perform element-wise multiplication and sum to get the result
+            output_tensor[i, j] = torch.sum(region * weight)
     
-    "*** End Code ***"
-    return Output_Tensor
-
+    return output_tensor
 
 
 class DigitConvolutionalModel(Module):
@@ -384,13 +476,15 @@ class DigitConvolutionalModel(Module):
     
 
     def __init__(self):
-        # Initialize your model parameters here
-        super().__init__()
-        output_size = 10
-
-        self.convolution_weights = Parameter(ones((3, 3)))
-        """ YOUR CODE HERE """
-
+        # Initialize the model parameters
+        super(DigitConvolutionalModel, self).__init__()
+        
+        # Define the convolutional weights (3x3 filter)
+        self.convolution_weights = Parameter(torch.randn(3, 3))  # Randomly initialized weights for the convolution
+        
+        # Fully connected layers after convolution
+        self.fc1 = Linear(26 * 26, 128)  # Flattened size after convolution (26x26 from 28x28 - 3x3 filter)
+        self.fc2 = Linear(128, 10)  # Output size: 10 (for MNIST digits)
 
 
 
@@ -399,15 +493,28 @@ class DigitConvolutionalModel(Module):
  
     def forward(self, x):
         """
-        The convolutional layer is already applied, and the output is flattened for you. You should treat x as
-        a regular 1-dimentional datapoint now, similar to the previous questions.
+        The convolutional layer is already applied, and the output is flattened for you. 
+        You should treat x as a regular 1-dimensional datapoint now, similar to the previous questions.
         """
-        x = x.reshape(len(x), 28, 28)
+        batch_size = x.size(0)  # Number of samples in the batch
+
+        # Reshape input to be (batch_size, 28, 28)
+        x = x.reshape(batch_size, 28, 28)
+        
+        # Apply convolution to each sample in the batch (use Convolve function)
         x = stack(list(map(lambda sample: Convolve(sample, self.convolution_weights), x)))
+
+        # Flatten the convolution output (26x26 -> 1D vector of size 676)
         x = x.flatten(start_dim=1)
-        """ YOUR CODE HERE """
 
+        # Pass through the fully connected layers
+        x = relu(self.fc1(x))  # Apply first linear layer + ReLU activation
+        x = self.fc2(x)  # Output layer (logits)
 
+        return x  # Return the final output logits
+
+        
+        
     def get_loss(self, x, y):
         """
         Computes the loss for a batch of examples.
@@ -421,16 +528,45 @@ class DigitConvolutionalModel(Module):
             y: a node with shape (batch_size x 10)
         Returns: a loss tensor
         """
-        """ YOUR CODE HERE """
+        """ YOUR CODE HERE """  
+        # Get predictions (logits)
+        predictions = self.forward(x)
 
-     
+        # Cross-entropy loss for classification
+        return cross_entropy(predictions, y)
         
 
-    def train(self, dataset):
+    def train(self, dataset, num_epochs=10, lr=0.001, early_stopping_threshold=0.85):
         """
         Trains the model.
         """
-        """ YOUR CODE HERE """
+        # Use the Adam optimizer
+        optimizer = optim.Adam(self.parameters(), lr=lr)
+        dataloader = DataLoader(dataset, batch_size=64, shuffle=True) # We iterate over the batches
+        
+        for epoch in range(num_epochs):
+            total_loss = 0.0
+            for batch in dataloader:
+                xs, y = batch['x'], batch['label']  # Get the input (xs) and labels (y)
+
+                optimizer.zero_grad()  # Zero the gradients
+                loss = self.get_loss(xs, y)  # Compute the loss
+                loss.backward()  # Backpropagate the loss
+                optimizer.step()  # Update the model parameters
+
+                total_loss += loss.item()
+
+            # Print epoch results
+            print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {total_loss / len(dataset)}')
+
+            # Compute validation accuracy
+            val_accuracy = dataset.get_validation_accuracy()
+            print(f'Epoch [{epoch+1}/{num_epochs}], Validation Accuracy: {val_accuracy}')
+
+            # Early stopping based on validation accuracy
+            if val_accuracy > early_stopping_threshold:
+                print(f'Early stopping at epoch {epoch+1}, Validation Accuracy: {val_accuracy}')
+                break
 
 
 
@@ -445,9 +581,9 @@ class Attention(Module):
         """
         self.k_layer = Linear(layer_size, layer_size)
         self.q_layer = Linear(layer_size, layer_size)
-        self.v_layer = Linear(layer_size,layer_size)
+        self.v_layer = Linear(layer_size, layer_size)
 
-        #Masking part of attention layer
+        # Masking part of attention layer
         self.register_buffer("mask", torch.tril(torch.ones(block_size, block_size))
                                      .view(1, 1, block_size, block_size))
        
@@ -469,6 +605,25 @@ class Attention(Module):
         """
         B, T, C = input.size()
 
-        """YOUR CODE HERE"""
+        # Apply linear layers to get Q, K, V matrices
+        Q = self.q_layer(input)  
+        K = self.k_layer(input) 
+        V = self.v_layer(input)  
 
-     
+        Q = movedim(Q, 1, 2)
+        # Compute dot product Q * K^T
+        attention_scores = matmul(K, Q) 
+        
+        # Scale the attention scores
+        attention_scores = attention_scores / torch.sqrt(tensor(self.layer_size, dtype=torch.float32))
+
+        # Apply causal mask (set future positions to -inf)
+        attention_scores = attention_scores.masked_fill(self.mask[:, :, :T, :T] == 0, float('-inf'))
+
+        # Apply softmax to get attention weights
+        attention_weights = softmax(attention_scores, dim=-1) 
+
+        # Compute the weighted sum of values
+        output = matmul(attention_weights, V)  
+
+        return output

@@ -25,23 +25,39 @@ class Transformer_Block(nn.Module):
     This class builds the basic transformer block.
     """
     def __init__(self, n_embd, block_size):
-        super().__init__()
+        super(Transformer_Block, self).__init__()
 
         self.attn_block = Attention(n_embd, block_size)
         self.norm_1 = nn.LayerNorm(n_embd)
         self.linear_1 = nn.Linear(n_embd, n_embd)
         self.norm_2 = nn.LayerNorm(n_embd)
+        self.linear_2 = nn.Linear(n_embd, n_embd)  # Feedforward layer 2
+
 
 
     def forward(self, x):
         """YOUR CODE HERE"""
+        # Attention mechanism
+        attn_out = self.attn_block(x)
+        # Residual connection + layer normalization
+        x = self.norm_1(x + attn_out)
+        
+        # Feed-forward network
+        ff_out = self.linear_1(x)
+        ff_out = F.relu(ff_out)
+        ff_out = self.linear_2(ff_out)
+        
+        # Residual connection + layer normalization
+        x = self.norm_2(x + ff_out)
+
+        return x
 
        
 
 class Character_GPT(nn.Module):
    
     def __init__(self, block_size, n_embd, n_layer, vocab_size):
-        super().__init__()
+        super(Character_GPT, self).__init__()
         self.block_size = block_size
         self.embed = nn.Embedding(vocab_size, n_embd) #Embedding layer, think of this as similar to a linear layer
 
@@ -69,7 +85,18 @@ class Character_GPT(nn.Module):
         assert t <= self.block_size, f"Cannot forward sequence of length {t}, block size is only {self.block_size}"
 
         """YOUR CODE HERE"""
+        # Get embeddings
+        x = self.embed(input)
 
+        # Pass through transformer blocks
+        for block in self.transformer_blocks:
+            x = block(x)
+
+        # Apply final layer normalization and output layer
+        x = self.norm(x)
+        logits = self.output_layer(x)
+
+        return logits
 
     @torch.no_grad()
     def generate(self, idx, max_new_tokens):
