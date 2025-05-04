@@ -287,7 +287,10 @@ class DigitClassificationModel(Module):
                 break
 
 
+
+
 class LanguageIDModel(Module):
+    
     """
     A model for language identification at a single-word granularity.
 
@@ -295,18 +298,29 @@ class LanguageIDModel(Module):
     methods here. We recommend that you implement the RegressionModel before
     working on this part of the project.)
     """
+    
     def __init__(self):
         # Our dataset contains words from five different languages, and the
         # combined alphabets of the five languages contain a total of 47 unique
         # characters.
         # You can refer to self.num_chars or len(self.languages) in your code
+        # Initialize parameters
         self.num_chars = 47
         self.languages = ["English", "Spanish", "Finnish", "Dutch", "Polish"]
+        self.num_languages = len(self.languages)
+        self.hidden_size = 256  # Size of the hidden state
+        
         super(LanguageIDModel, self).__init__()
-        "*** YOUR CODE HERE ***"
+        
+        # Initialize layers
+        self.W_x = Linear(self.num_chars, self.hidden_size)  # Input to hidden weight matrix
+        self.W_hidden = Linear(self.hidden_size, self.hidden_size)  # Hidden to hidden weight matrix
+        self.output_layer = Linear(self.hidden_size, self.num_languages)  # Output layer for classification
 
+        
 
     def run(self, xs):
+        
         """
         Runs the model for a batch of examples.
 
@@ -335,10 +349,22 @@ class LanguageIDModel(Module):
             A node with shape (batch_size x 5) containing predicted scores
                 (also called logits)
         """
+        
         "*** YOUR CODE HERE ***"
-
+        h = torch.zeros(xs[0].size(0), self.hidden_size)  # Initialize hidden state (batch_size, hidden_size)
+        
+        for i in range(len(xs)):
+            if i == 0:
+                h = relu(self.W_x(xs[i]))  # Process first character
+            else:
+                h = relu(self.W_x(xs[i]) + self.W_hidden(h))  # Update hidden state with subsequent characters
+        
+        output = self.output_layer(h) 
+        return output
+        
     
     def get_loss(self, xs, y):
+        
         """
         Computes the loss for a batch of examples.
 
@@ -352,10 +378,15 @@ class LanguageIDModel(Module):
             y: a node with shape (batch_size x 5)
         Returns: a loss node
         """
-        "*** YOUR CODE HERE ***"
         
+        "*** YOUR CODE HERE ***"
+        predictions = self.run(xs)  # Get language prediction scores
+        y = torch.argmax(y, dim=1)  # Convert one-hot to class indices
+        return cross_entropy(predictions, y)  # Cross-entropy loss for classification
+                
 
-    def train(self, dataset):
+    def train(self, dataset, num_epochs=20, lr=0.001, early_stopping_threshold=0.85):
+        
         """
         Trains the model.
 
@@ -369,9 +400,35 @@ class LanguageIDModel(Module):
 
         For more information, look at the pytorch documentation of torch.movedim()
         """
-        "*** YOUR CODE HERE ***"
-
         
+        "*** YOUR CODE HERE ***"
+        
+        dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
+        optimizer = optim.Adam(self.parameters(), lr=lr)
+
+        for epoch in range(num_epochs):
+            total_loss = 0.0
+            for batch in dataloader:
+                xs, y = batch['x'], batch['label']  # Get the input (xs) and labels (y)
+                xs = movedim(xs, 0, 1)
+                    
+                optimizer.zero_grad()  # Zero the gradients
+                loss = self.get_loss(xs, y)  # Compute the loss
+                loss.backward()  # Backpropagate the loss
+                optimizer.step()  # Update the model parameters
+
+                total_loss += loss.item()
+
+
+            # Compute validation accuracy
+            val_accuracy = dataset.get_validation_accuracy()
+            print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {total_loss / len(dataloader)}, Validation Accuracy: {val_accuracy}')
+
+            # Early stopping based on validation accuracy
+            if val_accuracy > early_stopping_threshold:
+                print(f'Early stopping at epoch {epoch+1}, Validation Accuracy: {val_accuracy}')
+                break
+  
 
 def Convolve(input: tensor, weight: tensor):
     """
