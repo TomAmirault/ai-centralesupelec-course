@@ -208,12 +208,14 @@ class DigitClassificationModel(Module):
     """
     def __init__(self):
         # Initialize your model parameters here
-        super().__init__()
+        super(DigitClassificationModel, self).__init__()
         input_size = 28 * 28
         output_size = 10
         "*** YOUR CODE HERE ***"
 
-
+        self.hidden1 = Linear(input_size, 256)
+        self.hidden2 = Linear(256, 256)
+        self.output = Linear(256, output_size)
 
 
     def run(self, x):
@@ -231,7 +233,9 @@ class DigitClassificationModel(Module):
                 (also called logits)
         """
         """ YOUR CODE HERE """
-
+        x = relu(self.hidden1(x))
+        x = relu(self.hidden2(x))
+        return self.output(x)
  
 
     def get_loss(self, x, y):
@@ -248,16 +252,39 @@ class DigitClassificationModel(Module):
         Returns: a loss tensor
         """
         """ YOUR CODE HERE """
-
+        predictions = self.run(x)
+        return cross_entropy(predictions, y)
     
         
 
-    def train(self, dataset):
+    def train(self, dataset, num_epochs = 15, lr = 0.001, early_stopping_threshold=0.975):
         """
         Trains the model.
         """
         """ YOUR CODE HERE """
+        dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
+        optimizer = optim.Adam(self.parameters(), lr=lr)
 
+        for epoch in range(num_epochs):
+            total_loss = 0.0
+            for batch in dataloader:
+                x, y = batch['x'], batch['label']  # Get inputs and labels from the dataset
+                
+                optimizer.zero_grad()  # Zero the gradients
+                loss = self.get_loss(x, y)  # Calculate loss
+                loss.backward()  # Backpropagate the loss
+                optimizer.step()  # Update model parameters
+
+                total_loss += loss.item()
+
+            # Compute validation accuracy
+            val_accuracy = dataset.get_validation_accuracy()
+            print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {total_loss / len(dataloader)}, Validation Accuracy: {val_accuracy}')
+
+            # Early stopping based on validation accuracy
+            if val_accuracy > early_stopping_threshold:
+                print(f'Early stopping at epoch {epoch+1}, Validation Accuracy: {val_accuracy}')
+                break
 
 
 class LanguageIDModel(Module):
