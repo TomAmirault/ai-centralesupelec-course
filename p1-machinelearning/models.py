@@ -443,15 +443,23 @@ def Convolve(input: tensor, weight: tensor):
 
     This returns a subtensor who's first element is tensor[y,x] and has height 'height, and width 'width'
     """
-    input_tensor_dimensions = input.shape
-    weight_dimensions = weight.shape
-    Output_Tensor = tensor(())
-    "*** YOUR CODE HERE ***"
+    d1, d2 = input.shape
+    h, w = weight.shape
 
+    output_d1 = d1 - h + 1
+    output_d2 = d2 - w + 1
+
+    output_tensor = torch.zeros(output_d1, output_d2)
+
+    # Apply convolution by sliding the kernel over the input
+    for i in range(output_d1):
+        for j in range(output_d2):
+            # Get the region of the input matrix we are currently looking at
+            region = input[i:i+h, j:j+w]
+            # Perform element-wise multiplication and sum to get the result
+            output_tensor[i, j] = torch.sum(region * weight)
     
-    "*** End Code ***"
-    return Output_Tensor
-
+    return output_tensor
 
 
 class DigitConvolutionalModel(Module):
@@ -468,13 +476,15 @@ class DigitConvolutionalModel(Module):
     
 
     def __init__(self):
-        # Initialize your model parameters here
-        super().__init__()
-        output_size = 10
-
-        self.convolution_weights = Parameter(ones((3, 3)))
-        """ YOUR CODE HERE """
-
+        # Initialize the model parameters
+        super(DigitConvolutionalModel, self).__init__()
+        
+        # Define the convolutional weights (3x3 filter)
+        self.convolution_weights = Parameter(torch.randn(3, 3))  # Randomly initialized weights for the convolution
+        
+        # Fully connected layers after convolution
+        self.fc1 = Linear(26 * 26, 128)  # Flattened size after convolution (26x26 from 28x28 - 3x3 filter)
+        self.fc2 = Linear(128, 10)  # Output size: 10 (for MNIST digits)
 
 
 
@@ -483,15 +493,28 @@ class DigitConvolutionalModel(Module):
  
     def forward(self, x):
         """
-        The convolutional layer is already applied, and the output is flattened for you. You should treat x as
-        a regular 1-dimentional datapoint now, similar to the previous questions.
+        The convolutional layer is already applied, and the output is flattened for you. 
+        You should treat x as a regular 1-dimensional datapoint now, similar to the previous questions.
         """
-        x = x.reshape(len(x), 28, 28)
+        batch_size = x.size(0)  # Number of samples in the batch
+
+        # Reshape input to be (batch_size, 28, 28)
+        x = x.reshape(batch_size, 28, 28)
+        
+        # Apply convolution to each sample in the batch (use Convolve function)
         x = stack(list(map(lambda sample: Convolve(sample, self.convolution_weights), x)))
+
+        # Flatten the convolution output (26x26 -> 1D vector of size 676)
         x = x.flatten(start_dim=1)
-        """ YOUR CODE HERE """
 
+        # Pass through the fully connected layers
+        x = relu(self.fc1(x))  # Apply first linear layer + ReLU activation
+        x = self.fc2(x)  # Output layer (logits)
 
+        return x  # Return the final output logits
+
+        
+        
     def get_loss(self, x, y):
         """
         Computes the loss for a batch of examples.
@@ -505,16 +528,45 @@ class DigitConvolutionalModel(Module):
             y: a node with shape (batch_size x 10)
         Returns: a loss tensor
         """
-        """ YOUR CODE HERE """
+        """ YOUR CODE HERE """  
+        # Get predictions (logits)
+        predictions = self.forward(x)
 
-     
+        # Cross-entropy loss for classification
+        return cross_entropy(predictions, y)
         
 
-    def train(self, dataset):
+    def train(self, dataset, num_epochs=10, lr=0.001, early_stopping_threshold=0.85):
         """
         Trains the model.
         """
-        """ YOUR CODE HERE """
+        # Use the Adam optimizer
+        optimizer = optim.Adam(self.parameters(), lr=lr)
+        dataloader = DataLoader(dataset, batch_size=64, shuffle=True) # We iterate over the batches
+        
+        for epoch in range(num_epochs):
+            total_loss = 0.0
+            for batch in dataloader:
+                xs, y = batch['x'], batch['label']  # Get the input (xs) and labels (y)
+
+                optimizer.zero_grad()  # Zero the gradients
+                loss = self.get_loss(xs, y)  # Compute the loss
+                loss.backward()  # Backpropagate the loss
+                optimizer.step()  # Update the model parameters
+
+                total_loss += loss.item()
+
+            # Print epoch results
+            print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {total_loss / len(dataset)}')
+
+            # Compute validation accuracy
+            val_accuracy = dataset.get_validation_accuracy()
+            print(f'Epoch [{epoch+1}/{num_epochs}], Validation Accuracy: {val_accuracy}')
+
+            # Early stopping based on validation accuracy
+            if val_accuracy > early_stopping_threshold:
+                print(f'Early stopping at epoch {epoch+1}, Validation Accuracy: {val_accuracy}')
+                break
 
 
 
