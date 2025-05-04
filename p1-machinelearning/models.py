@@ -38,7 +38,7 @@ class PerceptronModel(Module):
         super(PerceptronModel, self).__init__()
         
         "*** YOUR CODE HERE ***"
-        # Let's initialize de weight as a PyTorch parameter
+        # Let's initialize the weight as a PyTorch parameter
         self.w = Parameter(torch.randn(1,dimensions)) # We initialie randomly
 
     def get_weights(self):
@@ -110,9 +110,12 @@ class RegressionModel(Module):
     def __init__(self):
         # Initialize your model parameters here
         "*** YOUR CODE HERE ***"
-        super().__init__()
-
-
+        super(RegressionModel, self).__init__()
+        
+        # We begin be defining the network layers.
+        self.hidden1 = Linear(1, 64)  # Input to first hidden layer
+        self.hidden2 = Linear(64, 64)  # First hidden layer to second hidden layer
+        self.output = Linear(64, 1)  # Final output layer
 
     def forward(self, x):
         """
@@ -124,7 +127,11 @@ class RegressionModel(Module):
             A node with shape (batch_size x 1) containing predicted y-values
         """
         "*** YOUR CODE HERE ***"
-
+        x = relu(self.hidden1(x))  # Apply first hidden layer + ReLU activation
+        x = relu(self.hidden2(x))  # Apply second hidden layer + ReLU activation
+        return self.output(x)  # Output layer
+        
+        
     
     def get_loss(self, x, y):
         """
@@ -137,10 +144,11 @@ class RegressionModel(Module):
         Returns: a tensor of size 1 containing the loss
         """
         "*** YOUR CODE HERE ***"
- 
+        predictions = self(x)  # Get the model's predictions
+        return mse_loss(predictions, y)  # Use MSE loss
         
 
-    def train(self, dataset):
+    def train(self, dataset, num_epochs=10000, lr=0.0001):
         """
         Trains the model.
 
@@ -155,8 +163,28 @@ class RegressionModel(Module):
             
         """
         "*** YOUR CODE HERE ***"
+        dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
+        optimizer = optim.Adam(self.parameters(), lr=lr)
 
-            
+        for epoch in range(num_epochs):
+            total_loss = 0.0
+            for batch in dataloader:
+                x, y = batch['x'], batch['label']  # Get inputs and labels from the dataset
+                
+                optimizer.zero_grad()  # Zero the gradients
+                loss = self.get_loss(x, y)  # Calculate loss
+                loss.backward()  # Backpropagate the loss
+                optimizer.step()  # Update model parameters
+
+                total_loss += loss.item()
+
+            print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {total_loss / len(dataloader)}')
+
+            # Early stopping if loss is sufficiently small
+            if total_loss / len(dataloader) < 0.01:
+                print(f'Early stopping at epoch {epoch+1}, Loss: {total_loss / len(dataloader)}')
+                break
+        
 
 
 
