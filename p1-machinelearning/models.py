@@ -581,9 +581,9 @@ class Attention(Module):
         """
         self.k_layer = Linear(layer_size, layer_size)
         self.q_layer = Linear(layer_size, layer_size)
-        self.v_layer = Linear(layer_size,layer_size)
+        self.v_layer = Linear(layer_size, layer_size)
 
-        #Masking part of attention layer
+        # Masking part of attention layer
         self.register_buffer("mask", torch.tril(torch.ones(block_size, block_size))
                                      .view(1, 1, block_size, block_size))
        
@@ -605,6 +605,25 @@ class Attention(Module):
         """
         B, T, C = input.size()
 
-        """YOUR CODE HERE"""
+        # Apply linear layers to get Q, K, V matrices
+        Q = self.q_layer(input)  
+        K = self.k_layer(input) 
+        V = self.v_layer(input)  
 
-     
+        Q = movedim(Q, 1, 2)
+        # Compute dot product Q * K^T
+        attention_scores = matmul(K, Q) 
+        
+        # Scale the attention scores
+        attention_scores = attention_scores / torch.sqrt(tensor(self.layer_size, dtype=torch.float32))
+
+        # Apply causal mask (set future positions to -inf)
+        attention_scores = attention_scores.masked_fill(self.mask[:, :, :T, :T] == 0, float('-inf'))
+
+        # Apply softmax to get attention weights
+        attention_weights = softmax(attention_scores, dim=-1) 
+
+        # Compute the weighted sum of values
+        output = matmul(attention_weights, V)  
+
+        return output
