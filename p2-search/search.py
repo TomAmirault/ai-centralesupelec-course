@@ -91,13 +91,12 @@ def depthFirstSearch(problem: SearchProblem) -> List[Directions]:
     """
     
     "*** YOUR CODE HERE ***"  
-    from util import Stack
 
     start_state = problem.getStartState()
     if problem.isGoalState(start_state):
         return []
 
-    stack = Stack()
+    stack = util.Stack()
     # Chaque élément : (état, chemin d'actions)
     stack.push((start_state, []))
     visited = set()
