@@ -5,7 +5,7 @@ project_name = "P4 - Reinforcement Learning"
 
 submission_filename = "submission-p4.zip"
 
-submitted_files = ['valueIterationAgents.py', 'qlearningAgents.py', 'analysis.py', 'model.py']
+submitted_files = ['valueIterationAgents.py', 'qlearningAgents.py', 'analysis.py']
 
 if __name__ == '__main__':
 
